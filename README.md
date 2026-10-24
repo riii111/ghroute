@@ -1,8 +1,8 @@
 # ghroute
 
-ghroute runs [GitHub CLI](https://cli.github.com/) as the account mapped to the owner of the target repository.
+Use the right GitHub account for every `gh` command, automatically.
 
-It sits in front of `gh` on `PATH` and starts the real `gh` with a per-account `GH_CONFIG_DIR`. Unlike `gh auth switch`, it changes no global state, so parallel `gh` calls, such as from several AI coding agents, never switch each other's account. It needs no shell hook, so non-interactive shells work too.
+ghroute picks the account from the repository each command targets. Your company's repositories run as your work account, and your own run as your personal account. There is no `gh auth switch`, so terminals and AI coding agents working in parallel never switch each other's account.
 
 ## Install
 
@@ -11,64 +11,38 @@ go install github.com/riii111/ghroute@latest
 ln -s "$(go env GOPATH)/bin/ghroute" ~/.local/bin/gh
 ```
 
-Put the `gh` symlink before the real `gh` on `PATH`. ghroute skips itself and runs the next `gh`. Set `GHROUTE_GH` to choose the `gh` binary.
+Make sure `~/.local/bin` comes before the real `gh` on your `PATH`. ghroute supports macOS and Linux.
 
-macOS and Linux are supported.
+## Set up
 
-## Setup
-
-Log in to each account in its own config directory:
+Log in once per account:
 
 ```sh
 GH_CONFIG_DIR=~/.config/ghroute/accounts/personal gh auth login
 GH_CONFIG_DIR=~/.config/ghroute/accounts/work gh auth login
 ```
 
-Map owners to accounts in `~/.config/ghroute/config.yml`:
+List which owners each account handles in `~/.config/ghroute/config.yml`:
 
 ```yaml
 accounts:
   personal:
     owners: [your-login]
   work:
-    owners: [acme-corp, acme-labs]
-    # config_dir: ~/.config/gh-work   # defaults to accounts/<name> next to this file
-
-# default: personal   # account for unmapped owners and commands without a repository
-# strict: true        # stop instead of using gh's active account when nothing applies
+    owners: [acme-corp]
 ```
 
-Owner names are case-insensitive. Set `GHROUTE_CONFIG` to read the config from another path.
-
-Check that each account's token belongs to the user in its `hosts.yml`:
+Check that each account logs in as the right user:
 
 ```sh
 ghroute doctor
 ```
 
-## How the account is chosen
+## Use
 
-The owner comes from the first of these that applies:
+Run `gh` as usual. ghroute finds the repository from `-R`, a GitHub URL in the arguments, or the current directory.
 
-1. `-R` / `--repo` (the last one wins)
-2. `GH_REPO`
-3. A whole argument that is a `https://github.com/OWNER/...` URL
-4. The `origin` remote of the current directory
-5. The current directory under `$GHQ_ROOT/github.com/OWNER/` (default `~/ghq`)
-
-Then:
-
-| Situation | Result |
-|---|---|
-| The owner is mapped | Runs as the mapped account |
-| The mapped account has no `hosts.yml` | Stops with an error |
-| No owner, or an unmapped owner, with `default` set | Runs as the default account |
-| Same, with `strict: true` | Stops with an error |
-| Same, otherwise | Runs as gh's active account |
-
-`gh` runs unchanged when `GH_CONFIG_DIR`, `GH_TOKEN` or `GITHUB_TOKEN` is already set, for `gh auth` commands other than `gh auth git-credential`, and when there is no config file.
-
-To see what a command would do:
+To see which account a command will use:
 
 ```console
 $ ghroute which pr view 123 -R acme-corp/api
@@ -76,6 +50,11 @@ owner:   acme-corp (from --repo)
 account: work
 config:  /Users/you/.config/ghroute/accounts/work
 ```
+
+When no account matches, `gh` runs as your current `gh` account. To change that, add one of these to the config:
+
+- `default: personal` runs unmatched commands as that account.
+- `strict: true` stops unmatched commands instead.
 
 ## License
 
