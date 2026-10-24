@@ -26,9 +26,17 @@ type Decision struct {
 
 var overridingVariables = []string{"GH_CONFIG_DIR", "GH_TOKEN", "GITHUB_TOKEN"}
 
-func Decide(args []string, cfg *config.Config, env target.Env) (Decision, error) {
-	if reason, ok := passthroughReason(args, cfg, env); ok {
+func Decide(args []string, env target.Env, load func() (*config.Config, error)) (Decision, error) {
+	if reason, ok := passthroughReason(args, env); ok {
 		return Decision{Kind: Passthrough, Reason: reason}, nil
+	}
+
+	cfg, err := load()
+	if err != nil {
+		return Decision{}, err
+	}
+	if cfg == nil {
+		return Decision{Kind: Passthrough, Reason: "no config file"}, nil
 	}
 
 	owner, found := target.Resolve(args, env)
@@ -46,7 +54,7 @@ func Decide(args []string, cfg *config.Config, env target.Env) (Decision, error)
 	return Decision{Kind: UseAccount, Owner: owner, Account: *account}, nil
 }
 
-func passthroughReason(args []string, cfg *config.Config, env target.Env) (string, bool) {
+func passthroughReason(args []string, env target.Env) (string, bool) {
 	for _, name := range overridingVariables {
 		if env.Getenv(name) != "" {
 			return name + " is set", true
@@ -54,9 +62,6 @@ func passthroughReason(args []string, cfg *config.Config, env target.Env) (strin
 	}
 	if len(args) > 0 && args[0] == "auth" && (len(args) < 2 || args[1] != "git-credential") {
 		return "gh auth command", true
-	}
-	if cfg == nil {
-		return "no config file", true
 	}
 	return "", false
 }

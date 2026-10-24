@@ -39,6 +39,7 @@ func TestGh(t *testing.T) {
 		args          []string
 		env           []string
 		removeAccount string
+		brokenConfig  bool
 		wantAccount   string
 		wantConfigDir string
 		wantErr       string
@@ -53,6 +54,9 @@ func TestGh(t *testing.T) {
 		{name: "GH_TOKEN set", origin: "git@github.com:work-org/app.git", args: []string{"pr", "list"}, env: []string{"GH_TOKEN=x"}},
 		{name: "outer GH_CONFIG_DIR kept", origin: "git@github.com:work-org/app.git", args: []string{"auth", "git-credential", "get"}, env: []string{"GH_CONFIG_DIR=/outer"}, wantConfigDir: "/outer"},
 		{name: "missing account folder", args: []string{"pr", "list", "-R", "work-org/app"}, removeAccount: "work", wantErr: "hosts.yml"},
+		{name: "broken config with GH_TOKEN", args: []string{"pr", "list", "-R", "work-org/app"}, env: []string{"GH_TOKEN=x"}, brokenConfig: true},
+		{name: "broken config with gh auth", args: []string{"auth", "status"}, brokenConfig: true},
+		{name: "broken config when routing", args: []string{"pr", "list", "-R", "work-org/app"}, brokenConfig: true, wantErr: "config.yml"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,6 +73,9 @@ func TestGh(t *testing.T) {
 				if err := os.RemoveAll(f.accountDir(tt.removeAccount)); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if tt.brokenConfig {
+				f.write(f.configPath(), 0o600, "accounts: [\n")
 			}
 
 			out, err := f.command(dir, tt.env, "gh", tt.args...).CombinedOutput()
@@ -177,6 +184,7 @@ func TestDoctor(t *testing.T) {
 		wantOutput string
 	}{
 		{name: "all accounts match", env: []string{"GH_TOKEN=outer"}, workLogin: "me-work", wantOutput: "ok    work:"},
+		{name: "GH_HOST for another host", env: []string{"GH_HOST=ghe.example.com"}, workLogin: "me-work", wantOutput: "ok    work:"},
 		{name: "token of another user", workLogin: "me", wantFailed: true, wantOutput: "FAIL  work: token belongs to me, not me-work"},
 	}
 	for _, tt := range tests {
@@ -206,7 +214,7 @@ type fixture struct {
 const fakeGh = `#!/bin/sh
 case "$*" in
   *--watch*) sleep 2 ;;
-  "api user --jq .login") cat "$GH_CONFIG_DIR/login"; exit ;;
+  "api user --hostname github.com --jq .login") cat "$GH_CONFIG_DIR/login"; exit ;;
 esac
 printf '%%s %%s\n' "${GH_CONFIG_DIR:--}" "$*" >> %q
 `
@@ -240,8 +248,12 @@ func newFixture(t *testing.T) *fixture {
 		f.write(filepath.Join(dir, "hosts.yml"), 0o600, "github.com:\n    user: "+login+"\n")
 		f.write(filepath.Join(dir, "login"), 0o600, login+"\n")
 	}
-	f.write(filepath.Join(f.home, ".config/ghroute/config.yml"), 0o600, fixtureConfig)
+	f.write(f.configPath(), 0o600, fixtureConfig)
 	return f
+}
+
+func (f *fixture) configPath() string {
+	return filepath.Join(f.home, ".config/ghroute/config.yml")
 }
 
 func (f *fixture) command(dir string, env []string, name string, args ...string) *exec.Cmd {

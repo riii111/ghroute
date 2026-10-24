@@ -1,6 +1,7 @@
 package route
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func TestDecide(t *testing.T) {
 				}
 			}
 
-			got, err := Decide(tt.args, cfg, fakeEnv(tt.vars))
+			got, err := Decide(tt.args, fakeEnv(tt.vars), loaded(cfg, nil))
 
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -61,15 +62,45 @@ func TestDecide(t *testing.T) {
 	}
 }
 
-func TestDecideWithoutConfigPassesThrough(t *testing.T) {
-	got, err := Decide([]string{"-R", "work-org/app"}, nil, fakeEnv(nil))
+func TestDecideWithUnusableConfig(t *testing.T) {
+	loadErr := errors.New("broken config")
+	tests := []struct {
+		name    string
+		args    []string
+		vars    map[string]string
+		loadErr error
+		wantErr bool
+	}{
+		{name: "no config file", args: []string{"-R", "work-org/app"}},
+		{name: "broken config with GH_TOKEN", args: []string{"-R", "work-org/app"}, vars: map[string]string{"GH_TOKEN": "x"}, loadErr: loadErr},
+		{name: "broken config with GH_CONFIG_DIR", args: []string{"auth", "login"}, vars: map[string]string{"GH_CONFIG_DIR": "/x"}, loadErr: loadErr},
+		{name: "broken config with gh auth", args: []string{"auth", "status"}, loadErr: loadErr},
+		{name: "broken config when routing", args: []string{"-R", "work-org/app"}, loadErr: loadErr, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			load := loaded(nil, tt.loadErr)
 
-	if err != nil || got.Kind != Passthrough {
-		t.Fatalf("Decide = %+v, %v", got, err)
+			got, err := Decide(tt.args, fakeEnv(tt.vars), load)
+
+			if tt.wantErr {
+				if !errors.Is(err, loadErr) {
+					t.Fatalf("err = %v, want %v", err, loadErr)
+				}
+				return
+			}
+			if err != nil || got.Kind != Passthrough {
+				t.Fatalf("Decide = %+v, %v", got, err)
+			}
+		})
 	}
 }
 
 // --- Helpers ---
+
+func loaded(cfg *config.Config, err error) func() (*config.Config, error) {
+	return func() (*config.Config, error) { return cfg, err }
+}
 
 func newConfig(t *testing.T, extra string) *config.Config {
 	t.Helper()

@@ -89,11 +89,10 @@ func runGh(args []string, stderr io.Writer) int {
 }
 
 func decide(args []string) (route.Decision, error) {
-	cfg, _, err := loadConfig()
-	if err != nil {
-		return route.Decision{}, err
-	}
-	return route.Decide(args, cfg, target.ProcessEnv())
+	return route.Decide(args, target.ProcessEnv(), func() (*config.Config, error) {
+		cfg, _, err := loadConfig()
+		return cfg, err
+	})
 }
 
 func loadConfig() (*config.Config, string, error) {
@@ -176,7 +175,7 @@ func checkAccount(gh string, account config.Account) string {
 }
 
 func authenticatedLogin(gh, configDir string) (string, error) {
-	cmd := exec.Command(gh, "api", "user", "--jq", ".login")
+	cmd := exec.Command(gh, "api", "user", "--hostname", "github.com", "--jq", ".login")
 	cmd.Env = append(withoutVariables(os.Environ(), tokenVariables), "GH_CONFIG_DIR="+configDir)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
