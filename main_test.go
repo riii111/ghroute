@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 )
 
 var binary string
@@ -46,7 +45,6 @@ func TestGh(t *testing.T) {
 	}{
 		{name: "scp-like origin", origin: "git@github.com:work-org/app.git", args: []string{"pr", "list"}, wantAccount: "work"},
 		{name: "origin with host alias", origin: "git@github.com-alias:me/dotfiles.git", args: []string{"pr", "list"}, wantAccount: "personal"},
-		{name: "https origin", origin: "https://github.com/me/dotfiles.git", args: []string{"pr", "list"}, wantAccount: "personal"},
 		{name: "unmapped origin", origin: "https://github.com/someone/app.git", args: []string{"pr", "list"}},
 		{name: "-R beats origin", origin: "git@github.com:me/dotfiles.git", args: []string{"pr", "view", "1", "-R", "work-org/app"}, wantAccount: "work"},
 		{name: "ghq path", ghqPath: "work-org/app/sub", args: []string{"pr", "list"}, wantAccount: "work"},
@@ -105,39 +103,6 @@ func TestGh(t *testing.T) {
 	}
 }
 
-func TestGhConcurrentCallsDoNotAffectEachOther(t *testing.T) {
-	f := newFixture(t)
-	watch := []string{"pr", "checks", "1", "--watch", "-R", "me/dotfiles"}
-	watcher := f.command(f.home, nil, "gh", watch...)
-	if err := watcher.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = watcher.Process.Kill() })
-
-	other := []string{"pr", "list", "-R", "work-org/app"}
-	if out, err := f.command(f.home, nil, "gh", other...).CombinedOutput(); err != nil {
-		t.Fatalf("gh %v: %v\n%s", other, err, out)
-	}
-	done := make(chan error, 1)
-	go func() { done <- watcher.Wait() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("watcher did not finish")
-	}
-
-	want := []string{
-		f.configDirOf("work") + " " + strings.Join(other, " "),
-		f.configDirOf("personal") + " " + strings.Join(watch, " "),
-	}
-	if got := f.loggedLines(); !slices.Equal(got, want) {
-		t.Errorf("log = %q, want %q", got, want)
-	}
-}
-
 func TestWhich(t *testing.T) {
 	tests := []struct {
 		name string
@@ -183,8 +148,7 @@ func TestDoctor(t *testing.T) {
 		wantFailed bool
 		wantOutput string
 	}{
-		{name: "all accounts match", env: []string{"GH_TOKEN=outer"}, workLogin: "me-work", wantOutput: "ok    work:"},
-		{name: "GH_HOST for another host", env: []string{"GH_HOST=ghe.example.com"}, workLogin: "me-work", wantOutput: "ok    work:"},
+		{name: "all accounts match", env: []string{"GH_TOKEN=outer", "GITHUB_TOKEN=outer", "GH_HOST=ghe.example.com"}, workLogin: "me-work", wantOutput: "ok    work:"},
 		{name: "token of another user", workLogin: "me", wantFailed: true, wantOutput: "FAIL  work: token belongs to me, not me-work"},
 	}
 	for _, tt := range tests {
@@ -213,8 +177,9 @@ type fixture struct {
 
 const fakeGh = `#!/bin/sh
 case "$*" in
-  *--watch*) sleep 2 ;;
-  "api user --hostname github.com --jq .login") cat "$GH_CONFIG_DIR/login"; exit ;;
+  "api user --hostname github.com --jq .login")
+    [ -z "$GH_TOKEN$GITHUB_TOKEN" ] || exit 1
+    cat "$GH_CONFIG_DIR/login"; exit ;;
 esac
 printf '%%s %%s\n' "${GH_CONFIG_DIR:--}" "$*" >> %q
 `

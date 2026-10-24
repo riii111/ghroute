@@ -34,7 +34,7 @@ var tokenVariables = []string{"GH_CONFIG_DIR", "GH_TOKEN", "GITHUB_TOKEN", "GH_E
 // --- Entry point ---
 
 func Main(argv []string, stdout, stderr io.Writer) int {
-	if strings.TrimSuffix(filepath.Base(argv[0]), ".exe") == "gh" {
+	if filepath.Base(argv[0]) == "gh" {
 		return runGh(argv[1:], stderr)
 	}
 

@@ -16,12 +16,10 @@ import (
 
 type Account struct {
 	Name      string
-	Owners    []string
 	ConfigDir string
 }
 
 type Config struct {
-	Path     string
 	Accounts map[string]Account
 	Default  string
 	Strict   bool
@@ -75,14 +73,13 @@ func Parse(path string, data []byte) (*Config, error) {
 	}
 
 	cfg := &Config{
-		Path:     path,
 		Accounts: map[string]Account{},
 		Default:  raw.Default,
 		Strict:   raw.Strict,
 		byOwner:  map[string]string{},
 	}
 	for name, entry := range raw.Accounts {
-		if err := cfg.add(name, entry.Owners, entry.ConfigDir); err != nil {
+		if err := cfg.add(filepath.Dir(path), name, entry.Owners, entry.ConfigDir); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 	}
@@ -95,16 +92,16 @@ func Parse(path string, data []byte) (*Config, error) {
 	return cfg, nil
 }
 
-func (c *Config) add(name string, owners []string, configDir string) error {
+func (c *Config) add(baseDir, name string, owners []string, configDir string) error {
 	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
 		return fmt.Errorf("invalid account name %q", name)
 	}
 
-	dir, err := expandDir(configDir, filepath.Join(filepath.Dir(c.Path), "accounts", name))
+	dir, err := expandDir(configDir, filepath.Join(baseDir, "accounts", name))
 	if err != nil {
 		return fmt.Errorf("account %q: %w", name, err)
 	}
-	c.Accounts[name] = Account{Name: name, Owners: owners, ConfigDir: dir}
+	c.Accounts[name] = Account{Name: name, ConfigDir: dir}
 
 	for _, owner := range owners {
 		key := strings.ToLower(owner)

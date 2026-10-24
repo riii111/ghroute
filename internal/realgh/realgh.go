@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
 func Find() (string, error) {
@@ -22,19 +21,12 @@ func Find() (string, error) {
 		if dir == "" {
 			continue
 		}
-		candidate := filepath.Join(dir, binaryName())
+		candidate := filepath.Join(dir, "gh")
 		if isExecutable(candidate) && resolve(candidate) != self {
 			return candidate, nil
 		}
 	}
 	return "", errors.New("gh not found on PATH")
-}
-
-func binaryName() string {
-	if runtime.GOOS == "windows" {
-		return "gh.exe"
-	}
-	return "gh"
 }
 
 func isExecutable(path string) bool {
