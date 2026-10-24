@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    fmt:
+      glob: "*.go"
+      run: golangci-lint fmt {staged_files}
+      stage_fixed: true
