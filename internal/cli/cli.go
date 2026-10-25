@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -48,7 +49,7 @@ func Main(argv []string, stdout, stderr io.Writer) int {
 	case "doctor":
 		return doctor(stdout, stderr)
 	case "version", "--version":
-		fmt.Fprintln(stdout, "ghroute", Version)
+		fmt.Fprintln(stdout, "ghroute", version())
 		return 0
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
@@ -57,6 +58,16 @@ func Main(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "ghroute: unknown command %q\n\n%s", argv[1], usage)
 		return 2
 	}
+}
+
+func version() string {
+	if Version != "dev" {
+		return Version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return Version
 }
 
 func trimDoubleDash(args []string) []string {

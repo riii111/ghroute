@@ -56,6 +56,10 @@ When no account matches, `gh` runs as your current `gh` account. To change that,
 - `default: personal` runs unmatched commands as that account.
 - `strict: true` stops unmatched commands instead.
 
+## Limitations
+
+`gh repo clone OWNER/REPO` and `gh api repos/OWNER/...` use the account of the current directory, not of `OWNER`. Set `GH_REPO=OWNER/REPO` for these commands to pick the account.
+
 ## License
 
 MIT
