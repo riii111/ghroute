@@ -11,7 +11,7 @@ go install github.com/riii111/ghroute@latest
 ln -s "$(go env GOPATH)/bin/ghroute" ~/.local/bin/gh
 ```
 
-Make sure `~/.local/bin` comes before the real `gh` on your `PATH`. ghroute supports macOS and Linux.
+Make sure `~/.local/bin` comes before the real `gh` on your `PATH`. ghroute supports macOS and Linux, and prebuilt binaries are on the [Releases](https://github.com/riii111/ghroute/releases) page.
 
 ## Set up
 

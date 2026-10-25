@@ -28,6 +28,7 @@
             packages = [
               pkgs.go
               pkgs.golangci-lint
+              pkgs.goreleaser
               pkgs.govulncheck
               pkgs.lefthook
             ];
